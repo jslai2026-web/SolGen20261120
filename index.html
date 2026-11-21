@@ -1,0 +1,250 @@
+<!DOCTYPE html>
+<html lang="en"><head><meta charset="utf-8"><title>Procurement Solicitation Document Generator</title>
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<script src="https://cdnjs.cloudflare.com/ajax/libs/jszip/3.10.1/jszip.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js"></script>
+<style>
+:root{box-sizing:border-box;padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px);--bg:#f3f4f2;--sf:#fff;--tx:#1b2430;--mu:#5b6573;--bd:#cfd5dc;--ac:#1d4e6b;--ok:#2d7a4f;--wn:#a86a00;--er:#b3261e;color-scheme:light}
+@media(prefers-color-scheme:dark){:root:not([data-theme="light"]){--bg:#14181d;--sf:#1d232a;--tx:#e6e9ed;--mu:#9aa5b1;--bd:#38424d;--ac:#6db3d6;--ok:#5cc08a;--wn:#e0a03a;--er:#f08a82;color-scheme:dark}}
+html{scroll-padding-top:env(safe-area-inset-top,0px)}*,*:before{box-sizing:inherit}
+body{margin:0;background:var(--bg);color:var(--tx);font:15px/1.5 "Segoe UI",Roboto,Helvetica,Arial,sans-serif}
+header{padding:14px 20px;background:var(--ac);color:#fff}header h1{margin:0;font:600 19px Georgia,serif}header small{opacity:.85}
+nav{display:flex;gap:4px;flex-wrap:wrap;padding:8px 14px;background:var(--sf);border-bottom:1px solid var(--bd)}
+nav button{border:0;background:none;color:var(--tx);padding:7px 11px;border-radius:5px;cursor:pointer;font:inherit}
+nav button.on{background:var(--ac);color:#fff}main{max-width:1100px;margin:0 auto;padding:16px}
+.card{background:var(--sf);border:1px solid var(--bd);border-radius:6px;padding:14px;margin-bottom:14px}
+h2{font:600 18px Georgia,serif;margin:0 0 10px}h3{margin:0 0 6px;font-size:15px}
+.g{display:grid;grid-template-columns:repeat(auto-fit,minmax(170px,1fr));gap:10px}.g2{display:grid;grid-template-columns:repeat(auto-fit,minmax(240px,1fr));gap:10px}
+.st b{display:block;font:600 26px Georgia,serif}.st span{color:var(--mu);font-size:13px}
+label{display:block;font-size:13px;color:var(--mu)}input,select,textarea{width:100%;font:inherit;color:var(--tx);background:var(--bg);border:1px solid var(--bd);border-radius:4px;padding:6px 8px}
+textarea{min-height:90px;resize:vertical}button.b{background:var(--ac);color:#fff;border:0;border-radius:4px;padding:7px 12px;cursor:pointer;font:inherit;margin:3px 3px 3px 0}
+button.s{background:none;color:var(--ac);border:1px solid var(--ac)}button.d{background:var(--er)}button:focus-visible,input:focus-visible,textarea:focus-visible,select:focus-visible{outline:2px solid var(--ac);outline-offset:1px}
+.tw{overflow-x:auto}table{border-collapse:collapse;width:100%;font-size:14px}th,td{border-bottom:1px solid var(--bd);padding:5px 6px;text-align:left;vertical-align:top}
+.bar{height:10px;background:var(--bd);border-radius:5px;overflow:hidden}.bar i{display:block;height:100%;background:var(--ok)}
+.crit{color:var(--er)}.warn{color:var(--wn)}.ok{color:var(--ok)}.mu{color:var(--mu);font-size:13px}
+</style></head><body>
+<header><h1>Procurement Solicitation Document Generator</h1><small>Runs in your browser. Nothing is uploaded. Data is kept in this browser’s local storage.</small></header>
+<nav id="nav"></nav><main id="m"></main>
+<script>
+const K="psdg_v1",TABS=["Dashboard","Project","Sources","Design ideas","Requirements","Builder","Evaluation & pricing","Review & export","Backup","Templates"];
+const SEC=["Invitation","Instructions to Proponents","Project Background","Scope of Work","Technical Requirements","Project Schedule","Submission Requirements","Evaluation Criteria","Pricing Schedule","Contract Terms","Appendices"];
+let S=null,tab=0,ideaText="",msg="";
+try{S=JSON.parse(localStorage.getItem(K))}catch(e){}
+if(!S)S={p:{type:"RFP",status:"Draft"},src:[],ideas:[],reqs:[],sec:SEC.map(t=>({t,b:""})),ev:[],pr:[],tax:5,ver:[],ideaText:"",tpl:null};
+const E=s=>String(s==null?"":s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+function save(){try{localStorage.setItem(K,JSON.stringify(S))}catch(e){msg="Storage failed: "+e.message}}
+function go(i){tab=i;msg="";R()}
+function set(k,v){S.p[k]=v;save()}
+const F=[["name","Project name"],["num","Project number"],["ref","Procurement reference number"],["org","Department / organization"],["loc","Location"],["pm","Project manager"],["po","Procurement officer"],["eng","Engineering contact"],["budget","Budget"],["fund","Funding source"],["method","Procurement method"],["issue","Issue date"],["deadline","Submission deadline"],["sched","Project schedule"]];
+const TYPES=["RFP","RFT","RFQ","IRFQ","IRFP","SRFQ","SRFP","ITB","EOI","Prequalification","Custom"];
+const STAT=["Draft","Under review","Ready for approval","Finalized"];
+/* sources */
+async function addFiles(fl){
+  for(const f of fl){
+    const ext=(f.name.split(".").pop()||"").toLowerCase(),r={name:f.name,type:ext||"?",size:f.size,date:new Date().toISOString().slice(0,10),status:"Processing",text:"",warn:""};
+    S.src.push(r);
+    try{
+      if(["txt","csv","md"].includes(ext)){r.text=await f.text();r.status="Extracted"}
+      else if(ext==="docx"){const z=await JSZip.loadAsync(await f.arrayBuffer()),x=z.file("word/document.xml");if(!x)throw Error("No document.xml");
+        r.text=(await x.async("string")).replace(/<\/w:p>/g,"\n").replace(/<w:tab\/>/g," ").replace(/<[^>]+>/g,"").replace(/&amp;/g,"&").replace(/&lt;/g,"<").replace(/&gt;/g,">");r.status="Extracted"}
+      else if(ext==="xlsx"){const o=await xlsxText(await f.arrayBuffer());r.text=o.text;r.warn=o.sheets+" sheets";r.status=r.text.trim()?"Extracted":"Manual review required"}
+      else if(ext==="pdf"){const o=await pdfText(await f.arrayBuffer());r.text=o.text;r.warn=o.pages+" pages";if(r.text.replace(/\[Page \d+\]/g,"").trim().length<50){r.status="Manual review required";r.warn+=". Little or no text found, so this is likely a scan. OCR is not available."}else r.status="Extracted"}
+      else{r.status="Manual review required";r.warn=["xls","doc","pptx"].includes(ext)?"This format is not extracted in this build. Convert to DOCX, XLSX, or TXT and re-import.":"Unsupported or image file. OCR is not available offline here."}
+      r.text=r.text.slice(0,300000);
+    }catch(e){r.status="Error";r.warn=e.message}
+  }
+  save();R()
+}
+function extract(i){
+  const s=S.src[i];if(!s.text){msg="No extracted text for this file.";return R()}
+  const sents=s.text.split(/(?<=[.;:])\s+|\n+/).map(x=>x.trim()).filter(x=>x.length>25&&x.length<500&&/\b(shall|must|required|minimum|mandatory)\b/i.test(x));
+  let n=0;for(const t of sents.slice(0,60)){if(S.reqs.some(r=>r.d===t))continue;
+    S.reqs.push({id:"R-"+String(S.reqs.length+1).padStart(3,"0"),d:t,cat:"General",man:true,src:s.name,ref:refOf(s.text,t),sec:"",st:"Pending"});n++}
+  msg=n+" candidate requirements extracted from "+s.name+". Review each before use.";save();R()
+}
+/* ideas */
+function analyze(){
+  const parts=ideaText.split(/\n+|(?<=[.!?])\s+/).map(x=>x.trim()).filter(x=>x.length>3);
+  const map=[[/font|margin|layout|look|color|colour|logo|header|footer|spacing|appearance/i,"Formatting and appearance","Apply to document format"],[/section|order|structure|appendix|appendices|heading/i,"Document structure","Review section placement"],[/insurance|bond|payment|warranty|contract|liquidated/i,"Contract requirements","Add to Contract Terms"],[/evaluat|scor|weight|criteria/i,"Evaluation requirements","Add to Evaluation Criteria"],[/submit|submission|deadline|addendum|bidder|proponent/i,"Administrative requirements","Add to Submission Requirements"],[/deliverable|report|drawing/i,"Additional deliverables","Add to Scope of Work"],[/standard|spec|material|design|construct|technical/i,"Technical content","Add to Technical Requirements"]];
+  parts.forEach(t=>{let c=["Project-specific requirements","Add to relevant section"];for(const m of map)if(m[0].test(t)){c=[m[1],m[2]];break}
+    if(/\b(ignore|override|replace the budget|skip mandatory|remove mandatory)\b/i.test(t))c=["Conflicting instruction","Needs verification before use"];
+    S.ideas.push({t,cat:c[0],act:c[1],st:"Pending",done:false})});
+  S.ideaText=ideaText;msg=parts.length+" ideas categorized. Approve, reject, or defer each one.";save();R()
+}
+function incorporate(){
+  let n=0;S.ideas.forEach(i=>{if(i.st!=="Approved"||i.done||i.cat==="Conflicting instruction")return;
+    const m=/Scope/.test(i.act)?"Scope":/Contract/.test(i.act)?"Contract":/Evaluation/.test(i.act)?"Evaluation":/Submission/.test(i.act)?"Submission":/Technical/.test(i.act)?"Technical":null;
+    let s=m?S.sec.find(x=>x.t.includes(m)):null;if(!s){s=S.sec.find(x=>x.t==="Appendices");if(!s){s={t:"Appendices",b:""};S.sec.push(s)}}
+    s.b+=(s.b?"\n":"")+i.t;i.done=true;n++});
+  msg=n+" approved ideas added to sections.";save();R()
+}
+/* scope */
+function genScope(){
+  const p=S.p,ok=S.reqs.filter(r=>r.st==="Approved");let t="PROJECT OVERVIEW\n"+(p.desc||"[MISSING: project description]")+"\n\nOBJECTIVES\n"+(p.obj||"[MISSING: project objectives]")+"\n\nSITE / LOCATION\n"+(p.loc||"[MISSING: location]")+"\n\nREQUIRED WORK (approved requirements only)\n";
+  t+=ok.length?ok.map(r=>"- "+r.d+" [Source: "+r.src+"]").join("\n"):"[MISSING: no approved requirements yet]";
+  t+="\n\nEXCLUSIONS AND ASSUMPTIONS\n[MISSING: confirm with project team]";
+  const s=S.sec.find(x=>x.t==="Scope of Work");if(s){s.b=t}else S.sec.push({t:"Scope of Work",b:t});msg="Scope of Work draft created from approved requirements. Placeholders mark missing information.";save();R()
+}
+/* qc */
+function qc(){
+  const c=[],w=[],p=S.p;
+  [["name","project name"],["ref","procurement reference number"],["deadline","submission deadline"],["issue","issue date"],["org","organization"]].forEach(k=>{if(!p[k[0]])c.push("Missing "+k[1])});
+  S.sec.forEach(s=>{if(!s.b.trim())c.push("Section “"+s.t+"” is empty");if(/\[MISSING|TBD|XXX|\[insert/i.test(s.b))c.push("Placeholder text in “"+s.t+"”")});
+  const tw=S.ev.reduce((a,e)=>a+(+e.w||0),0);if(!S.ev.length)w.push("No evaluation criteria defined");else if(Math.abs(tw-100)>.001)c.push("Evaluation weights total "+tw+"%, not 100%");
+  if(!S.pr.length)w.push("Pricing schedule is empty");
+  const un=S.reqs.filter(r=>r.st==="Approved"&&!r.sec);if(un.length)w.push(un.length+" approved requirements not linked to a section");
+  const pe=S.ideas.filter(i=>i.st==="Pending").length;if(pe)w.push(pe+" design ideas still pending review");
+  const cf=S.ideas.filter(i=>i.cat==="Conflicting instruction"&&i.st!=="Rejected").length;if(cf)c.push(cf+" conflicting instructions unresolved");
+  const tot=F.length+S.sec.length+3,bad=c.length+w.length*.5,score=Math.max(0,Math.round(100*(1-bad/tot)));
+  return{c,w,score}
+}
+function mark(i,k,v){S.ideas[i][k]=v;save();R()}
+/* export */
+function build(){
+  const p=S.p,h=x=>E(x).replace(/\n/g,"<br>");let o="<html xmlns:o='urn:schemas-microsoft-com:office:office' xmlns:w='urn:schemas-microsoft-com:office:word'><head><meta charset='utf-8'><title>"+E(p.name)+"</title><style>body{font-family:Calibri,Arial;font-size:11pt}h1{font-size:20pt;color:#1d4e6b}h2{font-size:14pt;color:#1d4e6b}table{border-collapse:collapse;width:100%}td,th{border:1px solid #888;padding:4px;font-size:10pt}</style></head><body>";
+  o+="<div style='text-align:center;margin-top:150pt'><h1>"+E(S.p.type)+" – "+E(p.name||"Untitled")+"</h1><p>Reference: "+E(p.ref)+"</p><p>"+E(p.org)+"</p><p>Issued: "+E(p.issue)+" &nbsp; Closing: "+E(p.deadline)+"</p><p>Status: "+E(p.status)+" – Version "+(S.ver.length+1)+"</p></div><br style='page-break-before:always'>";
+  o+="<h2>Table of Contents</h2><ol>"+S.sec.map(s=>"<li>"+E(s.t)+"</li>").join("")+"</ol><br style='page-break-before:always'>";
+  S.sec.forEach((s,i)=>{o+="<h2>"+E(nl(i)+s.t)+"</h2><p>"+h(s.b)+"</p>";
+    if(/Evaluation/.test(s.t)&&S.ev.length)o+="<table><tr><th>Criterion</th><th>Weight %</th><th>Min threshold</th></tr>"+S.ev.map(e=>"<tr><td>"+E(e.n)+"</td><td>"+E(e.w)+"</td><td>"+E(e.m)+"</td></tr>").join("")+"</table>";
+    if(/Pricing/.test(s.t)&&S.pr.length)o+=priceTbl()});
+  const rq=S.reqs.filter(r=>r.st==="Approved");
+  if(rq.length)o+="<h2>Appendix: Requirements Matrix</h2><table><tr><th>ID</th><th>Requirement</th><th>Mandatory</th><th>Source</th><th>Section</th></tr>"+rq.map(r=>"<tr><td>"+E(r.id)+"</td><td>"+E(r.d)+"</td><td>"+(r.man?"Yes":"No")+"</td><td>"+E(r.src)+"</td><td>"+E(r.sec)+"</td></tr>").join("")+"</table>";
+  return o+"</body></html>"
+}
+function totals(){const sub=S.pr.reduce((a,r)=>a+(+r.q||0)*(+r.u||0),0),tx=sub*(+S.tax||0)/100;return{sub,tx,gt:sub+tx}}
+function priceTbl(){const t=totals();return "<table><tr><th>Item</th><th>Description</th><th>Unit</th><th>Qty</th><th>Unit price</th><th>Total</th></tr>"+S.pr.map((r,i)=>"<tr><td>"+(i+1)+"</td><td>"+E(r.d)+"</td><td>"+E(r.un)+"</td><td>"+E(r.q)+"</td><td>"+E(r.u)+"</td><td>"+((+r.q||0)*(+r.u||0)).toFixed(2)+"</td></tr>").join("")+"<tr><td colspan=5>Subtotal</td><td>"+t.sub.toFixed(2)+"</td></tr><tr><td colspan=5>Tax ("+E(S.tax)+"%)</td><td>"+t.tx.toFixed(2)+"</td></tr><tr><td colspan=5><b>Grand total</b></td><td><b>"+t.gt.toFixed(2)+"</b></td></tr></table>"}
+function dl(name,data,type){const a=document.createElement("a");a.href=URL.createObjectURL(new Blob([data],{type}));a.download=name;document.body.appendChild(a);a.click();a.remove()}
+function exportDoc(final){
+  const q=qc();if(final&&q.c.length){msg="Cannot finalize: "+q.c.length+" critical issues remain. Fix them or export as a draft.";return R()}
+  S.ver.push({v:S.ver.length+1,d:new Date().toLocaleString(),note:final?"Final export":"Draft export",st:S.p.status,n:S.sec.length+" sections"});if(final)S.p.status="Finalized";save();
+  dl((S.p.ref||"solicitation")+(final?"":"-DRAFT")+".doc","\ufeff"+build(),"application/msword");msg="Word file downloaded (.doc, opens in Word and can be saved as DOCX).";R()
+}
+function exportCsv(){const rows=[["ID","Requirement","Category","Mandatory","Source","Section","Status"]].concat(S.reqs.map(r=>[r.id,r.d,r.cat,r.man?"Yes":"No",r.src,r.sec,r.st]));dl("requirements.csv",rows.map(r=>r.map(c=>'"'+String(c).replace(/"/g,'""')+'"').join(",")).join("\n"),"text/csv")}
+function printDoc(){const w=window.open("","_blank");if(!w){msg="Pop-up blocked. Allow pop-ups to print.";return R()}w.document.write(build());w.document.close();w.focus();w.print()}
+function backup(){dl("solicitation-backup.json",JSON.stringify(S),"application/json")}
+function restore(f){f.text().then(t=>{try{const d=JSON.parse(t);if(!d.p||!d.sec)throw Error("Not a valid backup");S=d;save();msg="Backup restored.";R()}catch(e){msg="Restore failed: "+e.message;R()}})}
+function wipe(){if(confirm("Delete ALL local data in this app? This cannot be undone.")){localStorage.removeItem(K);location.reload()}}
+function mv(i,d){const j=i+d;if(j<0||j>=S.sec.length)return;[S.sec[i],S.sec[j]]=[S.sec[j],S.sec[i]];save();R()}
+/* extraction and numbering helpers */
+async function xlsxText(buf){
+  const z=await JSZip.loadAsync(buf),P=new DOMParser(),px=async n=>{const f=z.file(n);return f?P.parseFromString(await f.async("string"),"text/xml"):null};
+  const ss=await px("xl/sharedStrings.xml"),strs=ss?[...ss.getElementsByTagName("si")].map(si=>[...si.getElementsByTagName("t")].map(t=>t.textContent).join("")):[];
+  const wb=await px("xl/workbook.xml"),names=wb?[...wb.getElementsByTagName("sheet")].map(s=>s.getAttribute("name")):[];
+  const files=z.file(/^xl\/worksheets\/sheet\d+\.xml$/).sort((a,b)=>a.name.localeCompare(b.name,undefined,{numeric:true}));let out="";
+  for(let i=0;i<files.length;i++){const d=P.parseFromString(await files[i].async("string"),"text/xml");out+="[Sheet: "+(names[i]||"Sheet"+(i+1))+"]\n";
+    for(const r of d.getElementsByTagName("row")){const cells=[...r.getElementsByTagName("c")].map(c=>{const v=c.getElementsByTagName("v")[0],t=c.getAttribute("t");if(t==="inlineStr")return [...c.getElementsByTagName("t")].map(x=>x.textContent).join("");if(!v)return "";return t==="s"?(strs[+v.textContent]||""):v.textContent}).filter(x=>x!=="");if(cells.length)out+=cells.join("\t")+"\n"}}
+  return{text:out,sheets:files.length}
+}
+async function pdfText(buf){
+  pdfjsLib.GlobalWorkerOptions.workerSrc="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js";
+  const pdf=await pdfjsLib.getDocument({data:new Uint8Array(buf)}).promise;let out="";
+  for(let i=1;i<=pdf.numPages;i++){const tc=await(await pdf.getPage(i)).getTextContent();out+="[Page "+i+"]\n"+tc.items.map(x=>x.str+(x.hasEOL?"\n":" ")).join("")+"\n"}
+  return{text:out,pages:pdf.numPages}
+}
+function refOf(tx,t){const ix=tx.indexOf(t.slice(0,40));if(ix<0)return "Excerpt";const b=tx.slice(0,ix),p=[...b.matchAll(/\[Page (\d+)\]/g)].pop(),s=[...b.matchAll(/\[Sheet: ([^\]]+)\]/g)].pop();return p?"Page "+p[1]:s?"Sheet "+s[1]:"Excerpt"}
+function nl(i){const n=i+1,f=S.nf||"dot",ro=["","I","II","III","IV","V","VI","VII","VIII","IX","X","XI","XII","XIII","XIV","XV","XVI","XVII","XVIII","XIX","XX"];
+  return f==="num"?n+" ":f==="art"?"Article "+n+" \u2013 ":f==="part"?"Part "+(ro[n]||n)+" \u2013 ":f==="alpha"?String.fromCharCode(65+(n-1)%26)+". ":n+". "}
+function fill(s){return String(s||"").replace(/\{\{(\w+)\}\}/g,(m,k)=>S.p[k]||"")}
+function coverLines(){const c=(S.cover||"").trim();return c?fill(c).split("\n").filter(l=>l.trim()):null}
+/* guide template */
+async function analyzeTpl(f){
+  try{
+    if(!/\.docx$/i.test(f.name))throw Error("Only DOCX templates are analyzed. Convert PDF or DOC templates to DOCX first.");
+    const z=await JSZip.loadAsync(await f.arrayBuffer()),dx=z.file("word/document.xml");if(!dx)throw Error("Not a valid DOCX file");
+    const d=await dx.async("string"),st=z.file("word/styles.xml")?await z.file("word/styles.xml").async("string"):"",heads=[],re=/<w:p[ >][\s\S]*?<\/w:p>/g;let m;
+    while((m=re.exec(d))){const sm=/<w:pStyle w:val="([^"]+)"/.exec(m[0]),lm=sm&&/^heading\s?(\d)$/i.exec(sm[1]);if(!lm)continue;
+      const t=(m[0].match(/<w:t[ >][^<]*<\/w:t>|<w:t>[^<]*<\/w:t>/g)||[]).map(x=>x.replace(/<[^>]+>/g,"")).join("").trim();if(t)heads.push({l:+lm[1],t})}
+    const g=(re2,s)=>{const r=re2.exec(s);return r?r[1]:null},pm=[...d.matchAll(/<w:pgMar[^>]*>/g)].pop(),pz=[...d.matchAll(/<w:pgSz[^>]*>/g)].pop(),at=(s,k)=>{const r=s&&new RegExp("w:"+k+'="(\\d+)"').exec(s[0]);return r?+r[1]:null};
+    S.tpl={name:f.name,heads,font:g(/<w:rFonts[^>]*w:ascii="([^"]+)"/,st),sz:+g(/<w:sz w:val="(\d+)"/,st)||null,
+      mar:pm?{top:at(pm,"top")||1440,right:at(pm,"right")||1440,bottom:at(pm,"bottom")||1440,left:at(pm,"left")||1440}:null,pg:pz?{w:at(pz,"w")||12240,h:at(pz,"h")||15840}:null,
+      tables:(d.match(/<w:tbl>/g)||[]).length,hdr:z.file(/word\/header\d*\.xml/).length,ftr:z.file(/word\/footer\d*\.xml/).length,img:z.file(/word\/media\//).length,toc:/TOC \\/.test(d),num:!!z.file("word/numbering.xml")};
+    const tx=s=>(s.match(/<w:t(?: [^>]*)?>[^<]*<\/w:t>/g)||[]).map(y=>y.replace(/<[^>]+>/g,"")).join("").trim(),cv=[];
+    for(const q of d.match(/<w:p[ >][\s\S]*?<\/w:p>/g)||[]){if(/<w:pStyle w:val="[Hh]eading\d/.test(q)||/TOC \\/.test(q))break;const s2=tx(q);if(s2)cv.push(s2);if(cv.length>=12)break}
+    const hf=async re=>{const fs=z.file(re);return fs.length?(await fs[0].async("string")).split("</w:p>").map(tx).filter(Boolean).join(" | "):""};
+    const h0=heads[0]?heads[0].t:"",nf=/^Article\s/i.test(h0)?"art":/^Part\s+[IVX]+/i.test(h0)?"part":/^[A-Z][.)]\s/.test(h0)?"alpha":/^\d+\.\s/.test(h0)?"dot":/^\d+\s/.test(h0)?"num":null;
+    if(nf)S.nf=nf;S.cover=cv.join("\n");S.hdrText=await hf(/word\/header\d*\.xml/);S.ftrText=await hf(/word\/footer\d*\.xml/);
+    msg="Template analyzed: "+heads.length+" headings found. Numbering format "+(nf?"detected":"not detected")+". Cover, header, and footer text were copied for you to edit.";save()
+  }catch(e){msg="Template analysis failed: "+e.message}
+  R()
+}
+function useTpl(){
+  const h=S.tpl.heads,top=h.filter(x=>x.l===1),use=top.length?top:h.filter(x=>x.l<=2);if(!use.length){msg="No headings found to use.";return R()}
+  if(!confirm("Replace the section list with the template headings? Sections with text you wrote are kept at the end."))return;
+  const strip=t=>t.replace(/^(?:Article\s+\d+\s*[\u2013-]\s*|Part\s+[IVX]+\s*[\u2013-]\s*|\d+(?:\.\d+)*[.)]?\s+|[A-Z][.)]\s+)/,""),old=S.sec,nw=use.map(x=>{const t=strip(x.t),o=old.find(s=>s.t.toLowerCase()===t.toLowerCase());return{t,b:o?o.b:""}});
+  old.forEach(o=>{if(o.b.trim()&&!nw.some(n=>n.t.toLowerCase()===o.t.toLowerCase()))nw.push(o)});
+  S.sec=nw;save();msg="Section list now follows the template ("+use.length+" sections).";R()
+}
+/* native docx */
+async function buildDocx(){
+  const p=S.p,t=S.tpl||{},font=t.font||"Calibri",sz=t.sz||22,mar=t.mar||{top:1440,right:1440,bottom:1440,left:1440},pg=t.pg||{w:12240,h:15840},tw=pg.w-mar.left-mar.right;
+  const x=s=>String(s==null?"":s).replace(/[\u0000-\u0008\u000b\u000c\u000e-\u001f]/g,"").replace(/[&<>]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;"}[c]));
+  const run=(s,o)=>`<w:r>${o?`<w:rPr>${o}</w:rPr>`:""}<w:t xml:space="preserve">${x(s)}</w:t></w:r>`;
+  const par=(s,o={})=>`<w:p><w:pPr>${o.st?`<w:pStyle w:val="${o.st}"/>`:""}${o.pb?"<w:pageBreakBefore/>":""}${o.jc?`<w:jc w:val="${o.jc}"/>`:""}</w:pPr>${run(s,o.r)}</w:p>`;
+  const body=s=>String(s||"").split(/\n/).map(l=>par(l)).join("");
+  const bd=["top","left","bottom","right","insideH","insideV"].map(k=>`<w:${k} w:val="single" w:sz="4" w:space="0" w:color="808080"/>`).join("");
+  const tbl=(rows,cw)=>{const n=rows[0].length,w=cw||Array(n).fill(Math.floor(tw/n));return `<w:tbl><w:tblPr><w:tblW w:w="${tw}" w:type="dxa"/><w:tblBorders>${bd}</w:tblBorders><w:tblLayout w:type="fixed"/></w:tblPr><w:tblGrid>${w.map(c=>`<w:gridCol w:w="${c}"/>`).join("")}</w:tblGrid>${rows.map((r,i)=>`<w:tr>${i===0?"<w:trPr><w:tblHeader/></w:trPr>":""}${r.map((c,j)=>`<w:tc><w:tcPr><w:tcW w:w="${w[j]}" w:type="dxa"/>${i===0?'<w:shd w:val="clear" w:color="auto" w:fill="DCE6EE"/>':""}</w:tcPr>${par(c,{r:i===0?"<w:b/>":""})}</w:tc>`).join("")}</w:tr>`).join("")}</w:tbl>${par("")}`};
+  let b=par(p.type+" – "+(p.name||"Untitled"),{st:"Title"});if(coverLines())b=coverLines().map((l,k)=>k?par(l,{jc:"center"}):par(l,{st:"Title"})).join("");
+  (coverLines()?[]:["Reference: "+(p.ref||""),p.org||"","Issued: "+(p.issue||"")+"    Closing: "+(p.deadline||""),"Status: "+p.status+" – Version "+(S.ver.length+1)]).forEach(l=>b+=par(l,{jc:"center"}));
+  b+=par("Table of Contents",{st:"TOCHead",pb:1})+`<w:p><w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> TOC \\o "1-2" \\h \\z \\u </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>Update this field (right-click, Update Field) to build the table of contents.</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r></w:p>`;
+  S.sec.forEach((s,i)=>{b+=par(nl(i)+s.t,{st:"Heading1",pb:i===0})+body(s.b);
+    if(/Evaluation/.test(s.t)&&S.ev.length)b+=tbl([["Criterion","Weight %","Minimum threshold"]].concat(S.ev.map(e=>[e.n,String(e.w),e.m||""])));
+    if(/Pricing/.test(s.t)&&S.pr.length){const q=totals();b+=tbl([["Item","Description","Unit","Qty","Unit price","Total"]].concat(S.pr.map((r,k)=>[String(k+1),r.d,r.un,String(r.q),String(r.u),((+r.q||0)*(+r.u||0)).toFixed(2)])).concat([["","Subtotal","","","",q.sub.toFixed(2)],["","Tax ("+S.tax+"%)","","","",q.tx.toFixed(2)],["","Grand total","","","",q.gt.toFixed(2)]]))}});
+  const rq=S.reqs.filter(r=>r.st==="Approved");
+  if(rq.length)b+=par("Appendix: Requirements Matrix",{st:"Heading1",pb:1})+tbl([["ID","Requirement","Mandatory","Source","Section"]].concat(rq.map(r=>[r.id,r.d,r.man?"Yes":"No",r.src,r.sec])),[900,Math.max(2000,tw-900-1100-1800-1800),1100,1800,1800]);
+  const NS='xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main" xmlns:r="http://schemas.openxmlformats.org/officeDocument/2006/relationships"',H='<?xml version="1.0" encoding="UTF-8" standalone="yes"?>';
+  const fld=c=>`<w:r><w:fldChar w:fldCharType="begin"/></w:r><w:r><w:instrText xml:space="preserve"> ${c} </w:instrText></w:r><w:r><w:fldChar w:fldCharType="separate"/></w:r><w:r><w:t>1</w:t></w:r><w:r><w:fldChar w:fldCharType="end"/></w:r>`;
+  const hs=(n,l,o)=>`<w:style w:type="paragraph" w:styleId="${n}"><w:name w:val="${l}"/><w:basedOn w:val="Normal"/><w:next w:val="Normal"/><w:qFormat/><w:pPr>${o.p}</w:pPr><w:rPr><w:b/><w:color w:val="1D4E6B"/><w:sz w:val="${o.s}"/></w:rPr></w:style>`;
+  const styles=H+`<w:styles ${NS}><w:docDefaults><w:rPrDefault><w:rPr><w:rFonts w:ascii="${x(font)}" w:hAnsi="${x(font)}" w:cs="${x(font)}"/><w:sz w:val="${sz}"/></w:rPr></w:rPrDefault><w:pPrDefault><w:pPr><w:spacing w:after="120" w:line="264" w:lineRule="auto"/></w:pPr></w:pPrDefault></w:docDefaults><w:style w:type="paragraph" w:default="1" w:styleId="Normal"><w:name w:val="Normal"/><w:qFormat/></w:style>`
+   +hs("Heading1","heading 1",{p:'<w:keepNext/><w:spacing w:before="360" w:after="120"/><w:outlineLvl w:val="0"/>',s:32})+hs("Heading2","heading 2",{p:'<w:keepNext/><w:spacing w:before="240" w:after="80"/><w:outlineLvl w:val="1"/>',s:26})
+   +hs("Title","Title",{p:'<w:spacing w:before="3000" w:after="240"/><w:jc w:val="center"/>',s:48})+hs("TOCHead","TOC Heading",{p:'<w:spacing w:after="200"/>',s:32})+"</w:styles>";
+  const doc=H+`<w:document ${NS}><w:body>${b}<w:sectPr><w:headerReference w:type="default" r:id="rId3"/><w:footerReference w:type="default" r:id="rId4"/><w:pgSz w:w="${pg.w}" w:h="${pg.h}"/><w:pgMar w:top="${mar.top}" w:right="${mar.right}" w:bottom="${mar.bottom}" w:left="${mar.left}" w:header="708" w:footer="708" w:gutter="0"/><w:titlePg/></w:sectPr></w:body></w:document>`;
+  const R_="http://schemas.openxmlformats.org/officeDocument/2006/relationships/",z=new JSZip();
+  z.file("[Content_Types].xml",H+'<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="rels" ContentType="application/vnd.openxmlformats-package.relationships+xml"/><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/><Override PartName="/word/styles.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.styles+xml"/><Override PartName="/word/settings.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.settings+xml"/><Override PartName="/word/header1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.header+xml"/><Override PartName="/word/footer1.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.footer+xml"/></Types>');
+  z.file("_rels/.rels",H+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R_}officeDocument" Target="word/document.xml"/></Relationships>`);
+  z.file("word/_rels/document.xml.rels",H+`<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="${R_}styles" Target="styles.xml"/><Relationship Id="rId2" Type="${R_}settings" Target="settings.xml"/><Relationship Id="rId3" Type="${R_}header" Target="header1.xml"/><Relationship Id="rId4" Type="${R_}footer" Target="footer1.xml"/></Relationships>`);
+  z.file("word/settings.xml",H+`<w:settings ${NS}><w:updateFields w:val="true"/></w:settings>`);
+  z.file("word/header1.xml",H+`<w:hdr ${NS}><w:p><w:pPr><w:jc w:val="right"/></w:pPr>${run(S.hdrText?fill(S.hdrText):(p.ref?p.ref+" – ":"")+(p.name||""),'<w:color w:val="666666"/><w:sz w:val="18"/>')}</w:p></w:hdr>`);
+  z.file("word/footer1.xml",H+`<w:ftr ${NS}><w:p><w:pPr><w:jc w:val="center"/></w:pPr>${run((S.ftrText?fill(S.ftrText)+"    ":"")+"Page ")}${fld("PAGE")}${run(" of ")}${fld("NUMPAGES")}</w:p></w:ftr>`);
+  z.file("word/styles.xml",styles);z.file("word/document.xml",doc);
+  return z.generateAsync({type:"blob",mimeType:"application/vnd.openxmlformats-officedocument.wordprocessingml.document"})
+}
+async function exportDocx(final){
+  const q=qc();if(final&&q.c.length){msg="Cannot finalize: "+q.c.length+" critical issues remain. Fix them or export as a draft.";return R()}
+  try{const bl=await buildDocx();S.ver.push({v:S.ver.length+1,d:new Date().toLocaleString(),note:final?"Final DOCX export":"Draft DOCX export",st:S.p.status,n:S.sec.length+" sections"});if(final)S.p.status="Finalized";save();
+    dl((S.p.ref||"solicitation")+(final?"":"-DRAFT")+".docx",bl,bl.type);msg="DOCX downloaded. Word may ask to update fields on opening; choose Yes to build the table of contents."}catch(e){msg="DOCX export failed: "+e.message}
+  R()
+}
+/* views */
+const V=[
+()=>{const st=k=>S.reqs.filter(r=>r.st===k).length,q=qc(),n=STAT.indexOf(S.p.status);
+ return `<div class="g">${[["Source files",S.src.length],["Requirements",S.reqs.length],["Approved reqs",st("Approved")],["Ideas pending",S.ideas.filter(i=>i.st==="Pending").length],["Versions exported",S.ver.length],["Critical issues",q.c.length]].map(x=>`<div class="card st"><b>${x[1]}</b><span>${x[0]}</span></div>`).join("")}</div>
+ <div class="card"><h2>${E(S.p.name||"No project yet")}</h2><p class="mu">${E(S.p.type)} · ${E(S.p.status)} · closing ${E(S.p.deadline||"not set")}</p><label>Document readiness ${q.score}%</label><div class="bar"><i style="width:${q.score}%"></i></div></div>
+ <div class="card"><h2>Requirements by status</h2>${["Pending","Approved","Rejected"].map(k=>`<label>${k} (${st(k)})</label><div class="bar"><i style="width:${S.reqs.length?100*st(k)/S.reqs.length:0}%"></i></div>`).join("")}</div>
+ <div class="card"><button class="b" onclick="go(1)">Edit project</button><button class="b" onclick="go(2)">Import sources</button><button class="b" onclick="go(5)">Open builder</button><button class="b" onclick="go(7)">Review and export</button></div>`},
+()=>`<div class="card"><h2>Project</h2><div class="g2"><div><label>Document type</label><select onchange="set('type',this.value)">${TYPES.map(t=>`<option ${S.p.type===t?"selected":""}>${t}</option>`).join("")}</select></div><div><label>Status</label><select onchange="set('status',this.value)">${STAT.map(t=>`<option ${S.p.status===t?"selected":""}>${t}</option>`).join("")}</select></div>
+${F.map(f=>`<div><label>${f[1]}</label><input value="${E(S.p[f[0]])}" oninput="set('${f[0]}',this.value)"></div>`).join("")}</div>
+<label>Description</label><textarea oninput="set('desc',this.value)">${E(S.p.desc)}</textarea><label>Objectives</label><textarea oninput="set('obj',this.value)">${E(S.p.obj)}</textarea></div>`,
+()=>`<div class="card"><h2>Source documents</h2><p class="mu">Text extraction works for TXT, CSV, MD, DOCX, XLSX, and text-based PDF files. Other formats are listed and flagged for manual review. Files never leave this device.</p><input type="file" multiple accept=".txt,.csv,.md,.docx,.pdf,.xlsx,.xls,.doc,.pptx,image/*" onchange="addFiles(this.files)"></div>
+<div class="card tw"><table><tr><th>File</th><th>Type</th><th>Size</th><th>Imported</th><th>Status</th><th></th></tr>${S.src.map((s,i)=>`<tr><td>${E(s.name)}</td><td>${E(s.type)}</td><td>${(s.size/1024).toFixed(1)} KB</td><td>${s.date}</td><td class="${s.status==="Extracted"?"ok":"warn"}">${E(s.status)}<br><span class="mu">${E(s.warn)}</span></td><td><button class="b s" onclick="extract(${i})">Extract requirements</button><button class="b s" onclick="alert(S.src[${i}].text.slice(0,3000)||'No extracted text')">View text</button><button class="b d" onclick="if(confirm('Remove file?')){S.src.splice(${i},1);save();R()}">Remove</button></td></tr>`).join("")||"<tr><td colspan=6 class=mu>No files yet.</td></tr>"}</table></div>`,
+()=>`<div class="card"><h2>Document design ideas and content instructions</h2><p class="mu">Describe or paste your ideas for how the final procurement document should look and what additional content you want included.</p><textarea id="it" style="min-height:160px" oninput="ideaText=this.value;S.ideaText=this.value;save()">${E(ideaText||S.ideaText)}</textarea>
+<button class="b" onclick="navigator.clipboard.readText().then(t=>{ideaText+=t;R()}).catch(()=>{msg='Clipboard blocked. Paste with Ctrl+V.';R()})">Paste content</button><button class="b s" onclick="ideaText='';S.ideaText='';save();R()">Clear text</button><button class="b" onclick="analyze()">Analyze ideas</button><button class="b" onclick="incorporate()">Incorporate approved ideas</button></div>
+<div class="card tw"><h2>Review</h2><table><tr><th>User idea</th><th>Category</th><th>Proposed action</th><th>Status</th><th></th></tr>${S.ideas.map((x,i)=>`<tr><td><input value="${E(x.t)}" oninput="S.ideas[${i}].t=this.value;save()"></td><td class="${x.cat==="Conflicting instruction"?"crit":""}">${E(x.cat)}</td><td>${E(x.act)}</td><td>${x.done?"Incorporated":E(x.st)}</td><td><button class="b s" onclick="mark(${i},'st','Approved')">Approve</button><button class="b s" onclick="mark(${i},'st','Rejected')">Reject</button><button class="b s" onclick="mark(${i},'st','Deferred')">Defer</button></td></tr>`).join("")||"<tr><td colspan=5 class=mu>Nothing analyzed yet.</td></tr>"}</table><p class="mu">Conflicting instructions are never inserted. Original text is kept above.</p></div>`,
+()=>`<div class="card tw"><h2>Requirements matrix</h2><button class="b" onclick="S.reqs.push({id:'R-'+String(S.reqs.length+1).padStart(3,'0'),d:'',cat:'General',man:true,src:'User-entered',ref:'',sec:'',st:'Pending'});save();R()">Add requirement</button><button class="b s" onclick="exportCsv()">Export CSV</button>
+<table><tr><th>ID</th><th>Requirement</th><th>Mandatory</th><th>Source</th><th>Section</th><th>Status</th><th></th></tr>${S.reqs.map((r,i)=>`<tr><td>${r.id}</td><td><textarea style="min-height:50px" oninput="S.reqs[${i}].d=this.value;save()">${E(r.d)}</textarea></td><td><input type="checkbox" ${r.man?"checked":""} onchange="S.reqs[${i}].man=this.checked;save()"></td><td>${E(r.src)}</td><td><select onchange="S.reqs[${i}].sec=this.value;save()"><option value="">Unlinked</option>${S.sec.map(s=>`<option ${r.sec===s.t?"selected":""}>${E(s.t)}</option>`).join("")}</select></td><td><select onchange="S.reqs[${i}].st=this.value;save();R()">${["Pending","Approved","Rejected"].map(x=>`<option ${r.st===x?"selected":""}>${x}</option>`).join("")}</select></td><td><button class="b d" onclick="S.reqs.splice(${i},1);save();R()">Delete</button></td></tr>`).join("")||"<tr><td colspan=7 class=mu>No requirements. Extract them from a source file or add one.</td></tr>"}</table></div>`,
+()=>`<div class="card"><h2>Solicitation builder</h2><button class="b" onclick="genScope()">Generate Scope of Work draft</button><button class="b s" onclick="S.sec.push({t:'New section',b:''});save();R()">Add section</button></div>
+${S.sec.map((s,i)=>`<div class="card"><div class="g2"><input value="${E(s.t)}" oninput="S.sec[${i}].t=this.value;save()"><div><button class="b s" onclick="mv(${i},-1)">Up</button><button class="b s" onclick="mv(${i},1)">Down</button><button class="b s" onclick="S.sec.splice(${i+1},0,{t:S.sec[${i}].t+' (copy)',b:S.sec[${i}].b});save();R()">Duplicate</button><button class="b d" onclick="if(confirm('Delete section?')){S.sec.splice(${i},1);save();R()}">Delete</button></div></div><textarea style="min-height:110px" oninput="S.sec[${i}].b=this.value;save()">${E(s.b)}</textarea></div>`).join("")}`,
+()=>{const tw=S.ev.reduce((a,e)=>a+(+e.w||0),0),t=totals();return `<div class="card tw"><h2>Evaluation criteria</h2><button class="b" onclick="S.ev.push({n:'',w:0,m:''});save();R()">Add criterion</button><table><tr><th>Criterion</th><th>Weight %</th><th>Minimum</th><th></th></tr>${S.ev.map((e,i)=>`<tr><td><input value="${E(e.n)}" oninput="S.ev[${i}].n=this.value;save()"></td><td><input type="number" value="${E(e.w)}" oninput="S.ev[${i}].w=this.value;save()" onchange="R()"></td><td><input value="${E(e.m)}" oninput="S.ev[${i}].m=this.value;save()"></td><td><button class="b d" onclick="S.ev.splice(${i},1);save();R()">Delete</button></td></tr>`).join("")}</table><p class="${Math.abs(tw-100)<.001?"ok":"crit"}">Total weight: ${tw}% ${Math.abs(tw-100)<.001?"":"(must equal 100%)"}</p></div>
+<div class="card tw"><h2>Pricing schedule</h2><button class="b" onclick="S.pr.push({d:'',un:'',q:0,u:0});save();R()">Add item</button><table><tr><th>#</th><th>Description</th><th>Unit</th><th>Qty</th><th>Unit price</th><th>Total</th><th></th></tr>${S.pr.map((r,i)=>`<tr><td>${i+1}</td><td><input value="${E(r.d)}" oninput="S.pr[${i}].d=this.value;save()"></td><td><input value="${E(r.un)}" oninput="S.pr[${i}].un=this.value;save()"></td><td><input type="number" value="${E(r.q)}" onchange="S.pr[${i}].q=this.value;save();R()"></td><td><input type="number" value="${E(r.u)}" onchange="S.pr[${i}].u=this.value;save();R()"></td><td>${((+r.q||0)*(+r.u||0)).toFixed(2)}</td><td><button class="b d" onclick="S.pr.splice(${i},1);save();R()">Delete</button></td></tr>`).join("")}</table><label>Tax %</label><input type="number" style="max-width:120px" value="${S.tax}" onchange="S.tax=this.value;save();R()"><p>Subtotal ${t.sub.toFixed(2)} · Tax ${t.tx.toFixed(2)} · <b>Grand total ${t.gt.toFixed(2)}</b></p></div>`},
+()=>{const q=qc();return `<div class="card"><h2>Quality check: ${q.score}% ready</h2><div class="bar"><i style="width:${q.score}%"></i></div><h3 class="crit">Critical (${q.c.length})</h3>${q.c.map(x=>`<div class="crit">• ${E(x)}</div>`).join("")||"<div class=ok>None</div>"}<h3 class="warn">Warnings (${q.w.length})</h3>${q.w.map(x=>`<div class="warn">• ${E(x)}</div>`).join("")||"<div class=ok>None</div>"}</div>
+<div class="card"><h2>Export</h2><button class="b" onclick="exportDocx(false)">Export draft DOCX</button><button class="b" onclick="exportDocx(true)">Generate final DOCX</button><button class="b s" onclick="exportDoc(false)">Export .doc (simple)</button><button class="b s" onclick="printDoc()">Print / save as PDF</button><p class="mu">DOCX has real heading styles, a table of contents field, header, and page numbers. For PDF, use Print and choose Save as PDF.</p></div>
+<div class="card tw"><h2>Version history</h2><table>${S.ver.map(v=>`<tr><td>v${v.v}</td><td>${v.d}</td><td>${E(v.note)}</td><td>${E(v.st)}</td></tr>`).join("")||"<tr><td class=mu>No exports yet.</td></tr>"}</table></div>`},
+()=>`<div class="card"><h2>Backup and restore</h2><p class="mu">Browser storage is not a secure encrypted database and is not backed up. Clearing site data or switching browsers erases it. Back up regularly.</p><button class="b" onclick="backup()">Export full backup</button><label style="margin-top:8px">Restore from backup file</label><input type="file" accept=".json" onchange="restore(this.files[0])"><br><br><button class="b d" onclick="wipe()">Delete all local data</button></div>`
+];
+V.push(()=>{const t=S.tpl;return `<div class="card"><h2>Guide template</h2><p class="mu">Import a DOCX guide template. The app reads its headings, fonts, margins, page size, and layout features. The DOCX export applies the font, size, margins, and page size, and you can adopt its heading structure as your section list. The file itself is not stored.</p><input type="file" accept=".docx" onchange="analyzeTpl(this.files[0])"></div>`+`<div class="card"><h2>Numbering, cover, and header text</h2><div class="g2"><div><label>Section numbering format</label><select onchange="S.nf=this.value;save()">${[["dot","1. Decimal with period"],["num","1 Decimal"],["art","Article 1 \u2013"],["part","Part I \u2013 Roman"],["alpha","A. Alphabetic"]].map(o=>`<option value="${o[0]}" ${(S.nf||"dot")===o[0]?"selected":""}>${o[1]}</option>`).join("")}</select></div><div><label>Header text</label><input value="${E(S.hdrText)}" oninput="S.hdrText=this.value;save()"></div><div><label>Footer text (page numbers are added)</label><input value="${E(S.ftrText)}" oninput="S.ftrText=this.value;save()"></div></div><label>Cover page text, one line per row. The first line is the title.</label><textarea style="min-height:130px" oninput="S.cover=this.value;save()">${E(S.cover)}</textarea><p class="mu">Fields: {{type}} {{name}} {{ref}} {{org}} {{loc}} {{issue}} {{deadline}} {{status}}. Leave cover and header blank for the default layout. Applies to the DOCX export.</p></div>`+(t?`<div class="card tw"><h2>${E(t.name)}</h2><table><tr><td>Font</td><td>${E(t.font||"not found")} ${t.sz?t.sz/2+" pt":""}</td></tr><tr><td>Page size</td><td>${t.pg?(t.pg.w/1440).toFixed(2)+" x "+(t.pg.h/1440).toFixed(2)+" in":"not found"}</td></tr><tr><td>Margins (in)</td><td>${t.mar?["top","right","bottom","left"].map(k=>k+" "+(t.mar[k]/1440).toFixed(2)).join(", "):"not found"}</td></tr><tr><td>Tables / images</td><td>${t.tables} / ${t.img}</td></tr><tr><td>Headers / footers</td><td>${t.hdr} / ${t.ftr}</td></tr><tr><td>Table of contents</td><td>${t.toc?"yes":"no"}</td></tr><tr><td>Numbering definitions</td><td>${t.num?"yes":"no"}</td></tr></table><p class="warn">Not reproduced: cover page design, logos, custom table styles, and header and footer layout. Cover, header, and footer text and the numbering format are applied from the section above. Review the exported file against your template.</p><button class="b" onclick="useTpl()">Use template headings as sections</button><button class="b d" onclick="S.tpl=null;save();R()">Clear template</button></div><div class="card tw"><h3>Headings found (${t.heads.length})</h3><table>${t.heads.map(h=>`<tr><td style="padding-left:${h.l*14}px">L${h.l}: ${E(h.t)}</td></tr>`).join("")||"<tr><td class=mu>No Heading styles found. The template may use custom styles.</td></tr>"}</table></div>`:"")});
+function R(){
+  document.getElementById("nav").innerHTML=TABS.map((t,i)=>`<button class="${i===tab?"on":""}" onclick="go(${i})">${t}</button>`).join("");
+  document.getElementById("m").innerHTML=(msg?`<div class="card warn" role="status">${E(msg)}</div>`:"")+V[tab]()
+}
+R();
+</script></body></html>
